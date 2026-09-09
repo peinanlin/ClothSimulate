@@ -1,6 +1,6 @@
 # ClothSimulate
 
-一个使用 Unity 实现的实时布料模拟示例。项目以 GAMES101 中介绍的质点—弹簧模型为基础，同时提供了一套 PBD（Position Based Dynamics，位置约束动力学）实现，用于对比两种求解方式。
+一个使用 Unity 实现的实时布料模拟示例。项目以 GAMES101 中介绍的质点—弹簧模型为基础，通过质点受力、弹簧约束和数值积分模拟布料的实时运动与形变。
 
 ![布料模拟效果](docs/cloth-simulation-demo.gif)
 
@@ -8,7 +8,7 @@
 
 - 将布料离散为规则排列的质点网格
 - 使用结构、剪切和抗弯三类连接保持布料形状
-- 支持质点—弹簧与 PBD 两种模拟方法
+- 使用质点—弹簧系统模拟布料运动
 - 支持重力、速度阻尼、恒定外力和随机风力
 - 支持固定点、地面碰撞和球体等场景碰撞
 - 每帧根据模拟结果重建网格顶点与法线
@@ -18,7 +18,7 @@
 1. 使用 Unity Hub 打开仓库目录，推荐使用项目当前版本 `Unity 6000.0.56f1`。
 2. 打开 `Assets/Cloth.unity`。
 3. 点击 Play 运行场景。
-4. 场景默认启用 `Cloth` 对象上的质点—弹簧实现。若要测试 PBD，可停用 `Cloth`、启用 `PBDCloth`，并按需为其指定 `Sphere Collider`。
+4. 场景中的 `Cloth` 对象挂载了 `MassSpringCloth`，可在 Inspector 中调整质点、弹簧、阻尼与外力参数。
 
 运行时左上角提供两个简单按钮：
 
@@ -99,18 +99,6 @@ x(t + dt) = x(t) + v(t + dt) dt
 
 因此，物理层只需要更新质点，渲染网格就会随质点一起发生拉伸、弯曲和碰撞形变。
 
-## PBD 实现
-
-PBD 版本位于 `Assets/Scripts/PBD`。它沿用相同的质点拓扑和三类连接，但不直接通过弹簧力修正形状，而是迭代投影质点的预测位置。`PBDCloth.Update()` 的流程为：
-
-1. **预测位置**：根据重力、外力、随机风和阻尼更新速度，计算 `predictedPosition`。
-2. **求解距离约束**：`PBDDistanceConstraint` 计算当前距离与自然长度之差，并按两端质点的逆质量比例修正预测位置；固定点的逆质量为 0，因此不会移动。
-3. **投影碰撞**：把穿过地面的质点投影回 `groundY`，把进入球体的质点投影到球体表面。约束迭代中也会执行碰撞投影，以提高稳定性。
-4. **回写状态**：将预测位置写回当前质点，并通过 `(predictedPosition - prevPosition) / dt` 反推出新速度。
-5. **更新网格**：同步顶点并重新计算法线、切线与包围盒。
-
-与显式计算弹簧力相比，PBD 直接限制几何误差，在大时间步或较硬布料参数下通常更稳定。`structuralStiffness`、`shearStiffness`、`bendStiffness` 和 `looper` 分别控制三类约束的刚度与每帧迭代次数。
-
 ## 主要参数
 
 | 参数 | 含义 |
@@ -120,7 +108,7 @@ PBD 版本位于 `Assets/Scripts/PBD`。它沿用相同的质点拓扑和三类�
 | `clothMass` | 整块布料质量，会平均分配给所有质点 |
 | `ks` / `kd` | 弹簧刚度与沿弹簧方向的阻尼系数 |
 | `drag` | 质点速度阻尼 |
-| `looper` | 质点—弹簧版本的子步数，或 PBD 版本的约束迭代次数 |
+| `looper` | 每帧执行的模拟子步数 |
 | `externalForce` | 持续施加的外力 |
 | `randomForce` | 随机风在 X、Y、Z 三个方向上的取值范围 |
 | `randomInterval` | 随机风的刷新间隔 |
@@ -133,11 +121,7 @@ Assets/
 ├── Scripts/
 │   ├── MassSpringCloth.cs       # 质点—弹簧布料初始化、模拟循环和网格更新
 │   ├── ClothMass.cs             # 质点受力、积分与碰撞
-│   ├── ClothSpring.cs           # 胡克弹力和弹簧方向阻尼
-│   └── PBD/
-│       ├── PBDCloth.cs          # PBD 模拟流程、碰撞与网格更新
-│       ├── PBDPoint.cs          # PBD 质点状态
-│       └── PBDDistanceConstraint.cs # 距离约束投影
+│   └── ClothSpring.cs           # 胡克弹力和弹簧方向阻尼
 ├── Cloth.unity                  # 演示场景
 └── Materials/                   # 布料材质与 Shader
 ```
